@@ -515,7 +515,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   header: {
-    paddingBottom: 40, // Increased to cover the gap
+    paddingBottom: 40,
   },
   headerContent: {
     paddingHorizontal: 24,
@@ -541,11 +541,11 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    marginTop: -24, // Adjusted to eliminate gap
+    marginTop: -24,
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 120, // Increased to account for tab bar
+    paddingBottom: Platform.OS === 'ios' ? 120 : 100, // Account for tab bar
   },
   loadingContainer: {
     alignItems: 'center',
@@ -553,7 +553,7 @@ const styles = StyleSheet.create({
     paddingVertical: 50,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    marginTop: 24, // Adjusted spacing
+    marginTop: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   actionContainer: {
-    marginTop: 24, // Adjusted spacing
+    marginTop: 24,
   },
   sectionTitle: {
     fontSize: 22,

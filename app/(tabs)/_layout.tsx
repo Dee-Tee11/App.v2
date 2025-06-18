@@ -15,24 +15,23 @@ export default function TabLayout() {
         headerShown: false,
         tabBarStyle: {
           position: 'absolute',
-          bottom: 20,
-          left: 16,
-          right: 16,
+          bottom: 0, // Changed from 20 to 0 to stick to bottom
+          left: 0,   // Changed from 16 to 0
+          right: 0,  // Changed from 16 to 0
           backgroundColor:
             Platform.OS === 'ios' ? 'rgba(255, 255, 255, 0.95)' : '#FFFFFF',
-          borderRadius: 20,
-          height: 64,
-          paddingBottom: 8,
+          borderRadius: 0, // Changed from 20 to 0 for full width
+          height: Platform.OS === 'ios' ? 88 : 64, // Increased height for iOS to account for safe area
+          paddingBottom: Platform.OS === 'ios' ? 24 : 8, // More padding for iOS
           paddingTop: 8,
-          paddingHorizontal: 8,
-          borderTopWidth: 0,
+          paddingHorizontal: 16, // Keep horizontal padding
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(0, 0, 0, 0.1)',
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.12,
-          shadowRadius: 16,
+          shadowOffset: { width: 0, height: -2 }, // Shadow upward
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
           elevation: 12,
-          borderWidth: Platform.OS === 'ios' ? 1 : 0,
-          borderColor: 'rgba(255, 255, 255, 0.8)',
         },
         tabBarBackground:
           Platform.OS === 'ios'
@@ -46,7 +45,6 @@ export default function TabLayout() {
                     left: 0,
                     bottom: 0,
                     right: 0,
-                    borderRadius: 20,
                     overflow: 'hidden',
                   }}
                 />

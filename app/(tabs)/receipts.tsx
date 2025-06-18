@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     paddingHorizontal: 24,
-    paddingBottom: 120,
+    paddingBottom: Platform.OS === 'ios' ? 140 : 120, // Account for tab bar
   },
   emptyListContainer: {
     flex: 1,

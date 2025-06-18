@@ -57,7 +57,13 @@ export async function processReceipt(
       }
       
       // Step 3: Parse the extracted text
-      parsedData = parseReceiptData(extractedText);
+      const rawParsedData = parseReceiptData(extractedText);
+      parsedData = {
+        merchantName: rawParsedData.merchantName,
+        totalValue: rawParsedData.totalValue,
+        dateDetected: rawParsedData.dateDetected,
+        extractedText: rawParsedData.extractedText,
+      };
       
       // Step 4: Upload image to Supabase Storage (if we're going to save)
       if (shouldSave) {
@@ -144,92 +150,6 @@ async function uploadReceiptImage(imageUri: string): Promise<string> {
     return urlData.publicUrl;
   } catch (error) {
     console.error('❌ Erro no upload da imagem:', error);
-    throw error;
-  }
-}
-
-// Método alternativo usando Uint8Array (caso o primeiro não funcione)
-async function uploadReceiptImageAlternative(imageUri: string): Promise<string> {
-  try {
-    const fileName = `receipt_${Date.now()}.jpg`;
-
-    // Lê o ficheiro como base64
-    const base64 = await FileSystem.readAsStringAsync(imageUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-
-    // Converte base64 para Uint8Array
-    const byteCharacters = atob(base64);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const uint8Array = new Uint8Array(byteNumbers);
-
-    // Faz upload direto do Uint8Array
-    const { data, error } = await supabase.storage
-      .from('receipts')
-      .upload(fileName, uint8Array, {
-        contentType: 'image/jpeg',
-        upsert: false,
-      });
-
-    if (error) {
-      throw new Error(`Image upload failed: ${error.message}`);
-    }
-
-    // Gera URL pública
-    const { data: urlData } = supabase.storage
-      .from('receipts')
-      .getPublicUrl(data.path);
-
-    return urlData.publicUrl;
-  } catch (error) {
-    console.error('Image upload error:', error);
-    throw error;
-  }
-}
-
-// Método usando fetch nativo (fallback)
-async function uploadReceiptImageWithFetch(imageUri: string): Promise<string> {
-  try {
-    const fileName = `receipt_${Date.now()}.jpg`;
-
-    // Copia o ficheiro para um local temporário se necessário
-    const fileInfo = await FileSystem.getInfoAsync(imageUri);
-    if (!fileInfo.exists) {
-      throw new Error('File does not exist');
-    }
-
-    // Lê o ficheiro
-    const fileData = await FileSystem.readAsStringAsync(imageUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-
-    // Converte para formato correto
-    const response = await fetch(`data:image/jpeg;base64,${fileData}`);
-    const blob = await response.blob();
-
-    // Upload usando o blob
-    const { data, error } = await supabase.storage
-      .from('receipts')
-      .upload(fileName, blob, {
-        contentType: 'image/jpeg',
-        upsert: false,
-      });
-
-    if (error) {
-      throw new Error(`Image upload failed: ${error.message}`);
-    }
-
-    // Gera URL pública
-    const { data: urlData } = supabase.storage
-      .from('receipts')
-      .getPublicUrl(data.path);
-
-    return urlData.publicUrl;
-  } catch (error) {
-    console.error('Image upload error:', error);
     throw error;
   }
 }
