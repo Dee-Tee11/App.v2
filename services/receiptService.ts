@@ -16,40 +16,83 @@ export interface ProcessedReceipt {
   createdAt: string;
 }
 
-export async function processReceipt(imageUri: string): Promise<ProcessedReceipt> {
+export interface EditedReceiptData {
+  merchantName: string | null;
+  totalValue: number | null;
+  dateDetected: string | null;
+  extractedText: string;
+}
+
+export async function processReceipt(
+  imageUri: string, 
+  shouldSave: boolean = true, 
+  editedData?: EditedReceiptData
+): Promise<ProcessedReceipt> {
   try {
-    console.log('🚀 Processando recibo:', imageUri);
+    console.log('🚀 Processando recibo:', imageUri, 'shouldSave:', shouldSave);
     
-    // Step 1: Extract text using OCR
-    const ocrResult = await extractTextFromImage(imageUri);
-    console.log('📄 OCR Result completo:', ocrResult);
-    
-    // Step 2: Extract text from OCR result properly
-    let extractedText = '';
-    if (ocrResult.ParsedResults && ocrResult.ParsedResults.length > 0) {
-      extractedText = ocrResult.ParsedResults[0].ParsedText || '';
+    let parsedData;
+    let imageUrl: string;
+
+    if (editedData) {
+      // Use the edited data provided
+      parsedData = editedData;
+      // Upload image to get the URL
+      imageUrl = await uploadReceiptImage(imageUri);
+    } else {
+      // Step 1: Extract text using OCR
+      const ocrResult = await extractTextFromImage(imageUri);
+      console.log('📄 OCR Result completo:', ocrResult);
+      
+      // Step 2: Extract text from OCR result properly
+      let extractedText = '';
+      if (ocrResult.ParsedResults && ocrResult.ParsedResults.length > 0) {
+        extractedText = ocrResult.ParsedResults[0].ParsedText || '';
+      }
+      
+      console.log('📝 Texto extraído:', extractedText);
+      
+      if (!extractedText) {
+        throw new Error('Nenhum texto foi extraído da imagem');
+      }
+      
+      // Step 3: Parse the extracted text
+      parsedData = parseReceiptData(extractedText);
+      
+      // Step 4: Upload image to Supabase Storage (if we're going to save)
+      if (shouldSave) {
+        imageUrl = await uploadReceiptImage(imageUri);
+      } else {
+        // For preview, we can use the local URI temporarily
+        imageUrl = imageUri;
+      }
     }
     
-    console.log('📝 Texto extraído:', extractedText);
+    let receipt: Receipt;
     
-    if (!extractedText) {
-      throw new Error('Nenhum texto foi extraído da imagem');
+    if (shouldSave) {
+      // Step 5: Save receipt data to database
+      receipt = await saveReceiptToDatabase({
+        image_url: imageUrl,
+        extracted_text: parsedData.extractedText,
+        merchant_name: parsedData.merchantName,
+        total_amount: parsedData.totalValue,
+        date_detected: parsedData.dateDetected,
+      });
+    } else {
+      // Create a temporary receipt object for preview
+      receipt = {
+        id: 'temp-' + Date.now(),
+        user_id: null,
+        image_url: imageUrl,
+        extracted_text: parsedData.extractedText,
+        merchant_name: parsedData.merchantName,
+        total_amount: parsedData.totalValue,
+        date_detected: parsedData.dateDetected,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
     }
-    
-    // Step 3: Parse the extracted text
-    const parsedData = parseReceiptData(extractedText);
-    
-    // Step 4: Upload image to Supabase Storage
-    const imageUrl = await uploadReceiptImage(imageUri);
-    
-    // Step 5: Save receipt data to database
-    const receipt = await saveReceiptToDatabase({
-      image_url: imageUrl,
-      extracted_text: parsedData.extractedText,
-      merchant_name: parsedData.merchantName,
-      total_amount: parsedData.totalValue,
-      date_detected: parsedData.dateDetected,
-    });
     
     return {
       id: receipt.id,

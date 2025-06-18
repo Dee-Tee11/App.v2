@@ -17,6 +17,7 @@ import { Camera, Image as ImageIcon, FileText, DollarSign, Calendar, Store, Spar
 import { processReceipt } from '@/services/receiptService';
 import type { ProcessedReceipt } from '@/services/receiptService';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import EditReceiptModal, { EditableReceiptData } from '@/components/EditReceiptModal';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -35,6 +36,10 @@ export default function ScannerScreen() {
   const [cameraPermission, setCameraPermission] = useState<boolean | null>(null);
   const [galleryPermission, setGalleryPermission] = useState<boolean | null>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editModalData, setEditModalData] = useState<EditableReceiptData | null>(null);
+  const [pendingImageUri, setPendingImageUri] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const cameraScale = useSharedValue(1);
   const galleryScale = useSharedValue(1);
@@ -200,9 +205,23 @@ export default function ScannerScreen() {
     resultOpacity.value = 0;
 
     try {
-      const result = await processReceipt(imageUri);
+      // First, extract and parse the data without saving
+      const result = await processReceipt(imageUri, false); // Don't save yet
+      
       if (isMounted) {
-        setLastResult(result);
+        // Store the image URI for later use
+        setPendingImageUri(imageUri);
+        
+        // Prepare data for editing modal
+        const editData: EditableReceiptData = {
+          merchantName: result.merchantName || '',
+          totalValue: result.totalValue ? result.totalValue.toString().replace('.', ',') : '',
+          dateDetected: result.dateDetected || new Date().toISOString().split('T')[0],
+          extractedText: result.extractedText || '',
+        };
+        
+        setEditModalData(editData);
+        setShowEditModal(true);
       }
     } catch (error) {
       console.error('Processing error:', error);
@@ -226,6 +245,47 @@ export default function ScannerScreen() {
         setIsProcessing(false);
       }
     }
+  };
+
+  const handleSaveEditedReceipt = async (editedData: EditableReceiptData) => {
+    if (!pendingImageUri || !isMounted) return;
+
+    setIsSaving(true);
+    
+    try {
+      // Convert edited data back to the format expected by the service
+      const processedData = {
+        merchantName: editedData.merchantName.trim() || null,
+        totalValue: editedData.totalValue ? parseFloat(editedData.totalValue.replace(',', '.')) : null,
+        dateDetected: editedData.dateDetected || null,
+        extractedText: editedData.extractedText.trim(),
+      };
+
+      // Now save the receipt with the edited data
+      const result = await processReceipt(pendingImageUri, true, processedData);
+      
+      if (isMounted) {
+        setLastResult(result);
+        setShowEditModal(false);
+        setEditModalData(null);
+        setPendingImageUri(null);
+      }
+    } catch (error) {
+      console.error('Save error:', error);
+      if (isMounted) {
+        Alert.alert('Erro', 'Falha ao salvar o recibo. Tente novamente.');
+      }
+    } finally {
+      if (isMounted) {
+        setIsSaving(false);
+      }
+    }
+  };
+
+  const handleCloseEditModal = () => {
+    setShowEditModal(false);
+    setEditModalData(null);
+    setPendingImageUri(null);
   };
 
   const formatAmount = (amount: number | null) => {
@@ -434,6 +494,17 @@ export default function ScannerScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* Edit Receipt Modal */}
+      {editModalData && (
+        <EditReceiptModal
+          visible={showEditModal}
+          onClose={handleCloseEditModal}
+          onSave={handleSaveEditedReceipt}
+          initialData={editModalData}
+          isLoading={isSaving}
+        />
+      )}
     </View>
   );
 }
@@ -444,7 +515,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   header: {
-    paddingBottom: 32,
+    paddingBottom: 40, // Increased to cover the gap
   },
   headerContent: {
     paddingHorizontal: 24,
@@ -470,11 +541,11 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    marginTop: -16,
+    marginTop: -24, // Adjusted to eliminate gap
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 100,
+    paddingBottom: 120, // Increased to account for tab bar
   },
   loadingContainer: {
     alignItems: 'center',
@@ -482,7 +553,7 @@ const styles = StyleSheet.create({
     paddingVertical: 50,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    marginTop: 16,
+    marginTop: 24, // Adjusted spacing
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -512,7 +583,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   actionContainer: {
-    marginTop: 16,
+    marginTop: 24, // Adjusted spacing
   },
   sectionTitle: {
     fontSize: 22,
