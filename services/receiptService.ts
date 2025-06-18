@@ -16,89 +16,40 @@ export interface ProcessedReceipt {
   createdAt: string;
 }
 
-export interface EditedReceiptData {
-  merchantName: string | null;
-  totalValue: number | null;
-  dateDetected: string | null;
-  extractedText: string;
-}
-
-export async function processReceipt(
-  imageUri: string, 
-  shouldSave: boolean = true, 
-  editedData?: EditedReceiptData
-): Promise<ProcessedReceipt> {
+export async function processReceipt(imageUri: string): Promise<ProcessedReceipt> {
   try {
-    console.log('🚀 Processando recibo:', imageUri, 'shouldSave:', shouldSave);
+    console.log('🚀 Processando recibo:', imageUri);
     
-    let parsedData;
-    let imageUrl: string;
-
-    if (editedData) {
-      // Use the edited data provided
-      parsedData = editedData;
-      // Upload image to get the URL
-      imageUrl = await uploadReceiptImage(imageUri);
-    } else {
-      // Step 1: Extract text using OCR
-      const ocrResult = await extractTextFromImage(imageUri);
-      console.log('📄 OCR Result completo:', ocrResult);
-      
-      // Step 2: Extract text from OCR result properly
-      let extractedText = '';
-      if (ocrResult.ParsedResults && ocrResult.ParsedResults.length > 0) {
-        extractedText = ocrResult.ParsedResults[0].ParsedText || '';
-      }
-      
-      console.log('📝 Texto extraído:', extractedText);
-      
-      if (!extractedText) {
-        throw new Error('Nenhum texto foi extraído da imagem');
-      }
-      
-      // Step 3: Parse the extracted text
-      const rawParsedData = parseReceiptData(extractedText);
-      parsedData = {
-        merchantName: rawParsedData.merchantName,
-        totalValue: rawParsedData.totalValue,
-        dateDetected: rawParsedData.dateDetected,
-        extractedText: rawParsedData.extractedText,
-      };
-      
-      // Step 4: Upload image to Supabase Storage (if we're going to save)
-      if (shouldSave) {
-        imageUrl = await uploadReceiptImage(imageUri);
-      } else {
-        // For preview, we can use the local URI temporarily
-        imageUrl = imageUri;
-      }
+    // Step 1: Extract text using OCR
+    const ocrResult = await extractTextFromImage(imageUri);
+    console.log('📄 OCR Result completo:', ocrResult);
+    
+    // Step 2: Extract text from OCR result properly
+    let extractedText = '';
+    if (ocrResult.ParsedResults && ocrResult.ParsedResults.length > 0) {
+      extractedText = ocrResult.ParsedResults[0].ParsedText || '';
     }
     
-    let receipt: Receipt;
+    console.log('📝 Texto extraído:', extractedText);
     
-    if (shouldSave) {
-      // Step 5: Save receipt data to database
-      receipt = await saveReceiptToDatabase({
-        image_url: imageUrl,
-        extracted_text: parsedData.extractedText,
-        merchant_name: parsedData.merchantName,
-        total_amount: parsedData.totalValue,
-        date_detected: parsedData.dateDetected,
-      });
-    } else {
-      // Create a temporary receipt object for preview
-      receipt = {
-        id: 'temp-' + Date.now(),
-        user_id: null,
-        image_url: imageUrl,
-        extracted_text: parsedData.extractedText,
-        merchant_name: parsedData.merchantName,
-        total_amount: parsedData.totalValue,
-        date_detected: parsedData.dateDetected,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+    if (!extractedText) {
+      throw new Error('Nenhum texto foi extraído da imagem');
     }
+    
+    // Step 3: Parse the extracted text
+    const parsedData = parseReceiptData(extractedText);
+    
+    // Step 4: Upload image to Supabase Storage
+    const imageUrl = await uploadReceiptImage(imageUri);
+    
+    // Step 5: Save receipt data to database
+    const receipt = await saveReceiptToDatabase({
+      image_url: imageUrl,
+      extracted_text: parsedData.extractedText,
+      merchant_name: parsedData.merchantName,
+      total_amount: parsedData.totalValue,
+      date_detected: parsedData.dateDetected,
+    });
     
     return {
       id: receipt.id,
@@ -150,6 +101,92 @@ async function uploadReceiptImage(imageUri: string): Promise<string> {
     return urlData.publicUrl;
   } catch (error) {
     console.error('❌ Erro no upload da imagem:', error);
+    throw error;
+  }
+}
+
+// Método alternativo usando Uint8Array (caso o primeiro não funcione)
+async function uploadReceiptImageAlternative(imageUri: string): Promise<string> {
+  try {
+    const fileName = `receipt_${Date.now()}.jpg`;
+
+    // Lê o ficheiro como base64
+    const base64 = await FileSystem.readAsStringAsync(imageUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    // Converte base64 para Uint8Array
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const uint8Array = new Uint8Array(byteNumbers);
+
+    // Faz upload direto do Uint8Array
+    const { data, error } = await supabase.storage
+      .from('receipts')
+      .upload(fileName, uint8Array, {
+        contentType: 'image/jpeg',
+        upsert: false,
+      });
+
+    if (error) {
+      throw new Error(`Image upload failed: ${error.message}`);
+    }
+
+    // Gera URL pública
+    const { data: urlData } = supabase.storage
+      .from('receipts')
+      .getPublicUrl(data.path);
+
+    return urlData.publicUrl;
+  } catch (error) {
+    console.error('Image upload error:', error);
+    throw error;
+  }
+}
+
+// Método usando fetch nativo (fallback)
+async function uploadReceiptImageWithFetch(imageUri: string): Promise<string> {
+  try {
+    const fileName = `receipt_${Date.now()}.jpg`;
+
+    // Copia o ficheiro para um local temporário se necessário
+    const fileInfo = await FileSystem.getInfoAsync(imageUri);
+    if (!fileInfo.exists) {
+      throw new Error('File does not exist');
+    }
+
+    // Lê o ficheiro
+    const fileData = await FileSystem.readAsStringAsync(imageUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    // Converte para formato correto
+    const response = await fetch(`data:image/jpeg;base64,${fileData}`);
+    const blob = await response.blob();
+
+    // Upload usando o blob
+    const { data, error } = await supabase.storage
+      .from('receipts')
+      .upload(fileName, blob, {
+        contentType: 'image/jpeg',
+        upsert: false,
+      });
+
+    if (error) {
+      throw new Error(`Image upload failed: ${error.message}`);
+    }
+
+    // Gera URL pública
+    const { data: urlData } = supabase.storage
+      .from('receipts')
+      .getPublicUrl(data.path);
+
+    return urlData.publicUrl;
+  } catch (error) {
+    console.error('Image upload error:', error);
     throw error;
   }
 }
