@@ -9,16 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import {
-  TrendingUp,
-  Calendar,
-  DollarSign,
-  ShoppingBag,
-  PieChart,
-  BarChart3,
-  ArrowUp,
-  ArrowDown,
-} from 'lucide-react-native';
+import { TrendingUp, Calendar, DollarSign, ShoppingBag, ChartPie as PieChart, ChartBar as BarChart3, ArrowUp, ArrowDown } from 'lucide-react-native';
 import { getReceipts } from '@/services/receiptService';
 import type { ProcessedReceipt } from '@/services/receiptService';
 import LoadingSpinner from '@/components/LoadingSpinner';
