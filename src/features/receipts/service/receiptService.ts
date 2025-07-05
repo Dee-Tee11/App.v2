@@ -87,7 +87,10 @@ async function processReceiptData(
     console.log('🧠 Usando Groq para extração de dados...');
     try {
       const groqResult = await extractDataWithGroq(extractedText);
-      parsedData = { ...groqResult, extractedText: extractedText } as ParsedReceiptData;
+      parsedData = {
+        ...groqResult,
+        extractedText: extractedText,
+      } as ParsedReceiptData;
     } catch (groqError) {
       console.warn(
         '⚠️ Groq extraction failed, falling back to traditional parsing:',
@@ -156,7 +159,7 @@ export async function processReceipt(
       iva_dedutivel: parsedData.ivaDedutivel ?? false,
       valorTotalIVA: parsedData.valorTotalIVA || null, // Mantém nome original
     });
-
+    //
     console.log('✅ Recibo de imagem processado com sucesso');
     return mapReceiptToProcessedReceipt(receipt);
   } catch (error) {
@@ -204,7 +207,10 @@ export async function processPdfReceipt(
       console.log('🧠 Usando Groq para extração de dados do PDF...');
       try {
         const groqResult = await extractDataWithGroq(extractedText);
-        parsedData = { ...groqResult, extractedText: extractedText } as ParsedReceiptData;
+        parsedData = {
+          ...groqResult,
+          extractedText: extractedText,
+        } as ParsedReceiptData;
       } catch (groqError) {
         console.warn(
           '⚠️ Groq extraction failed, falling back to traditional parsing:',
